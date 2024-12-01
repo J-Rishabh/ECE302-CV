@@ -4,11 +4,11 @@ import numpy as np
 
 # Define ArUco marker dictionary and parameters
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-PARAMS = cv2.aruco.DetectorParameters()
+PARAMS = cv2.aruco.DetectorParameters_create()
 
 # Load calibration results from npy files
-CAMERA_MATRIX = np.load("camera_matrix3.npy")
-DIST_COEFFS = np.load("dist_coeffs3.npy")
+CAMERA_MATRIX = np.load("camera_matrix2.npy")
+DIST_COEFFS = np.load("dist_coeffs2.npy")
 
 
 # Define the size of the ArUco marker in meters
@@ -26,7 +26,6 @@ def main():
 
     # add rotation code 
 
-
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 800)
@@ -38,9 +37,12 @@ def main():
             print("Error: Could not read frame.")
             break
 
+        # Rotate the image 180 degrees clockwise
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
+
+
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
         # Detect ArUco markers
         corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT, parameters=PARAMS)
 

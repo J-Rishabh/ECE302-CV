@@ -10,8 +10,10 @@ MARKER_LENGTH = 4.35/100  # Marker side length in meters (e.g., 3 cm)
 MARKER_SEPARATION = 0.45/100  # Marker separation in meters (e.g., 1 cm)
 
 # Create the ArUco board
-board = cv2.aruco.GridBoard(
-    size=(BOARD_COLS, BOARD_ROWS),  # Tuple (columns, rows)
+board = cv2.aruco.GridBoard_create(
+    #size=(BOARD_COLS, BOARD_ROWS),  # Tuple (columns, rows)
+    markersX=BOARD_COLS,
+    markersY=BOARD_ROWS,
     markerLength=MARKER_LENGTH,    # Marker side length in meters
     markerSeparation=MARKER_SEPARATION,  # Separation in meters
     dictionary=ARUCO_DICT          # ArUco dictionary

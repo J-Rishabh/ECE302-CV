@@ -27,6 +27,7 @@ def main():
             print("Error: Could not read frame.")
             break
 
+
         # Display the resulting frame
         cv2.imshow('Arducam Live Feed', frame)
 

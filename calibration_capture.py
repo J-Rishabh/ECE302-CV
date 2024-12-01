@@ -10,7 +10,7 @@ if not os.path.exists(SAVE_FOLDER):
     print(f"Folder '{SAVE_FOLDER}' created.")
 
 # Initialize the camera (index set to 1 as per your preference)
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Error: Could not open camera.")
     exit()
@@ -34,6 +34,9 @@ while True:
     if not ret:
         print("Error: Could not read frame.")
         break
+
+    # Rotate the image 180 degrees clockwise
+    frame = cv2.rotate(frame, cv2.ROTATE_180)
 
     # Display the live feed
     cv2.imshow("Camera Calibration - Press 'c' to Capture", frame)
