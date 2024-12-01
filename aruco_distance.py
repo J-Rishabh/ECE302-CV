@@ -2,7 +2,7 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 
-# Define ArUco marker dictionary and parameters
+# Define ArUco marker dictionary and parameters 
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 PARAMS = cv2.aruco.DetectorParameters()
 
