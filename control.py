@@ -41,7 +41,8 @@ def pid_control(current_distance):
     integral += error
     derivative = error - prev_error
     prev_error = error
-    return KP * error + KI * integral + KD * derivative
+    #return KP * error + KI * integral + KD * derivative
+    return KP * error + KI * integral
 
 def autonomous_mode(cap):
     global prev_error, integral
@@ -61,33 +62,23 @@ def autonomous_mode(cap):
             # Check if markers are to the left or right
             if any(x < frame_center * 0.4 for x in marker_positions):  # Markers too far left
                 print("Markers moving out of frame to the left. Rotating clockwise.")
-                #set_motor_rotation("clockwise")
                 set_motor_rotation("counterclockwise")
-
             elif any(x > frame_center * 1.6 for x in marker_positions):  # Markers too far right
                 print("Markers moving out of frame to the right. Rotating counterclockwise.")
-                #set_motor_rotation("counterclockwise")
                 set_motor_rotation("clockwise")
-
         else:
             print("No markers detected. Rotating to find markers.")
-            set_motor_rotation("clockwise")
+            #set_motor_rotation("clockwise")
 
         # Capture new frame and update detected markers
         ret, frame = cap.read()
+        #cap.release()
         print('YO')
         if not ret:
             return
         frame = cv2.rotate(frame, cv2.ROTATE_180)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT, parameters=PARAMS)
-        #cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-        #cv2.imshow("Frame", frame)
-        # Exit on 'q'
-        #if cv2.waitKey(1) & 0xFF == ord('q'):
-            #break
-
-
 
     # Stop rotation once all markers are centered
     stop_motors()
@@ -106,7 +97,7 @@ def autonomous_mode(cap):
             print(f"Average Distance: {average_distance:.2f} meters")
 
             # Simple stop logic when within the target distance
-            if average_distance <= TARGET_DISTANCE:
+            if abs(average_distance - TARGET_DISTANCE) <= 0.1:  # Tolerance for stopping
                 print("Target distance reached. Stopping the car.")
                 stop_motors()
                 return
@@ -117,10 +108,17 @@ def autonomous_mode(cap):
             # Clamp control signal to the range [-1, 1]
             control_signal = max(-1, min(1, control_signal))
 
-            # Forward movement: Motor 1 (0), Motor 2 (-1), Motor 3 (1)
-            motor1_throttle = 0  # Motor 1 does not contribute to forward motion
-            motor2_throttle = control_signal  # Scaled by control signal
-            motor3_throttle = -control_signal   # Scaled by control signal
+            # Determine direction based on distance
+            if average_distance > TARGET_DISTANCE:  # Too far
+                print("Target too far. Moving forward.")
+                motor1_throttle = 0
+                motor2_throttle = control_signal
+                motor3_throttle = -control_signal
+            elif average_distance < TARGET_DISTANCE:  # Too close
+                print("Target too close. Moving backward.")
+                motor1_throttle = 0
+                motor2_throttle = -control_signal
+                motor3_throttle = control_signal
 
             # Clamp motor throttle values to [-1, 1]
             motor2_throttle = max(-1, min(1, motor2_throttle))
@@ -235,6 +233,7 @@ def main():
                     raise KeyboardInterrupt
                 elif event.type == pygame.JOYBUTTONDOWN:
                     if event.button == 3:  # Switch mode
+                        #cap.release()
                         mode = "autonomous" if mode == "manual" else "manual"
                     elif event.button == 6:  # Spin clockwise
                         print("Spinning clockwise!")
@@ -262,7 +261,9 @@ def main():
                 print("Manual Starting")
                 manual_mode()
             else:
+                #cap.rel
                 autonomous_mode(cap)
+                #cap.release()
 
             time.sleep(0.05)
 
