@@ -7,7 +7,7 @@ import board
 from adafruit_motorkit import MotorKit
 import math
 
-# ArUco marker setup
+# ArUco marker setup 
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 PARAMS = cv2.aruco.DetectorParameters_create()
 CAMERA_MATRIX = np.load("camera_matrix2.npy")
