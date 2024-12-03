@@ -12,7 +12,7 @@ DIST_COEFFS = np.load("dist_coeffs2.npy")
 
 
 # Define the size of the ArUco marker in meters
-MARKER_SIZE = 4.35/100 # Marker size in meters (e.g., 0.1 meters or 10 cm)
+MARKER_SIZE = 18.796 / 100#4.35/100 # Marker size in meters (e.g., 0.1 meters or 10 cm)
 
 def main():
     # Initialize the camera

@@ -12,7 +12,7 @@ ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 PARAMS = cv2.aruco.DetectorParameters_create()
 CAMERA_MATRIX = np.load("camera_matrix2.npy")
 DIST_COEFFS = np.load("dist_coeffs2.npy")
-MARKER_SIZE = 18.796 / 100 #4.35 / 100  # in meters
+MARKER_SIZE = 4.35/100#18.796 / 100 #4.35 / 100  # in meters
 
 # Motor setup
 kit = MotorKit(i2c=board.I2C())
@@ -45,95 +45,156 @@ def pid_control(current_distance):
     return KP * error + KI * integral
 
 def autonomous_mode(cap):
+    """
+    Autonomous mode for the car. Includes lateral and forward/backward adjustments.
+    """
     global prev_error, integral
-    ret, frame = cap.read()
-    if not ret:
-        return
-
-    frame = cv2.rotate(frame, cv2.ROTATE_180)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT, parameters=PARAMS)
-
-    while ids is None or not are_markers_centered(frame, corners):  # Rotate until markers are centered
-        if ids is not None:
-            marker_positions = [int(np.mean(corner[0][:, 0])) for corner in corners]
-            frame_center = frame.shape[1] // 2  # Horizontal center of the frame
-
-            # Check if markers are to the left or right
-            if any(x < frame_center * 0.4 for x in marker_positions):  # Markers too far left
-                print("Markers moving out of frame to the left. Rotating clockwise.")
-                set_motor_rotation("counterclockwise")
-            elif any(x > frame_center * 1.6 for x in marker_positions):  # Markers too far right
-                print("Markers moving out of frame to the right. Rotating counterclockwise.")
-                set_motor_rotation("clockwise")
-        else:
-            print("No markers detected. Rotating to find markers.")
-            #set_motor_rotation("clockwise")
-
-        # Capture new frame and update detected markers
+    try:
         ret, frame = cap.read()
-        #cap.release()
-        print('YO')
         if not ret:
+            print("Failed to read from the camera. Exiting.")
             return
+
         frame = cv2.rotate(frame, cv2.ROTATE_180)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT, parameters=PARAMS)
 
-    # Stop rotation once all markers are centered
-    stop_motors()
+        if ids is not None:
+            distances = []  # List to store distances to all detected markers
+            marker_positions = []
 
-    if ids is not None:
-        distances = []  # List to store distances to all detected markers
-        for corner, marker_id in zip(corners, ids.flatten()):
-            rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(corner, MARKER_SIZE, CAMERA_MATRIX, DIST_COEFFS)
-            distance = np.linalg.norm(tvec[0][0])  # Compute distance to the marker
-            distances.append(distance)
-            print(f"Marker ID: {marker_id}, Distance: {distance:.2f} meters")
+            for corner, marker_id in zip(corners, ids.flatten()):
+                rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(corner, MARKER_SIZE, CAMERA_MATRIX, DIST_COEFFS)
+                distance = np.linalg.norm(tvec[0][0])  # Compute distance to the marker
+                distances.append(distance)
+                marker_center = int(np.mean(corner[0][:, 0]))  # Horizontal center of the marker
+                marker_positions.append(marker_center)
 
-        # Calculate the average distance
-        if distances:
-            average_distance = sum(distances) / len(distances)
-            print(f"Average Distance: {average_distance:.2f} meters")
+            if distances:
+                leftmost_distance = min(distances)
+                rightmost_distance = max(distances)
+                variance = rightmost_distance - leftmost_distance
+                print(f"Variance: {variance:.2f} (Threshold: 0.25)")
 
-            # Simple stop logic when within the target distance
-            if abs(average_distance - TARGET_DISTANCE) <= 0.1:  # Tolerance for stopping
-                print("Target distance reached. Stopping the car.")
-                stop_motors()
-                return
+                # Perform lateral movement if variance exceeds threshold
+                while variance > 0.25:
+                    direction = "right" if rightmost_distance > leftmost_distance else "left"
+                    print(f"Variance too high. Moving {direction}.")
 
-            # Calculate control signal using the average distance
-            control_signal = pid_control(average_distance)
+                    # Apply lateral movement
+                    if direction == "right":
+                        kit.motor1.throttle = 1
+                        kit.motor2.throttle = 0
+                        kit.motor3.throttle = -1
+                    elif direction == "left":
+                        kit.motor1.throttle = -1
+                        kit.motor2.throttle = 0
+                        kit.motor3.throttle = 1
 
-            # Clamp control signal to the range [-1, 1]
-            control_signal = max(-1, min(1, control_signal))
+                    time.sleep(0.05)  # Short delay for smooth movement
 
-            # Determine direction based on distance
-            if average_distance > TARGET_DISTANCE:  # Too far
-                print("Target too far. Moving forward.")
-                motor1_throttle = 0
-                motor2_throttle = control_signal
-                motor3_throttle = -control_signal
-            elif average_distance < TARGET_DISTANCE:  # Too close
-                print("Target too close. Moving backward.")
-                motor1_throttle = 0
-                motor2_throttle = -control_signal
-                motor3_throttle = control_signal
+                    # Recompute variance
+                    ret, frame = cap.read()
+                    if not ret:
+                        print("Camera read failed during lateral movement. Stopping.")
+                        stop_motors()
+                        return
 
-            # Clamp motor throttle values to [-1, 1]
-            motor2_throttle = max(-1, min(1, motor2_throttle))
-            motor3_throttle = max(-1, min(1, motor3_throttle))
+                    frame = cv2.rotate(frame, cv2.ROTATE_180)
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT, parameters=PARAMS)
 
-            # Set motor throttles
-            kit.motor1.throttle = motor1_throttle
-            kit.motor2.throttle = motor2_throttle
-            kit.motor3.throttle = motor3_throttle
+                    if ids is not None:
+                        distances = []
+                        for corner in corners:
+                            rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(corner, MARKER_SIZE, CAMERA_MATRIX, DIST_COEFFS)
+                            distances.append(np.linalg.norm(tvec[0][0]))
 
-            print(f"Autonomous Control -> Motor1: {motor1_throttle}, Motor2: {motor2_throttle}, Motor3: {motor3_throttle}")
-    else:
-        # Stop the car if no markers are detected
-        print("No markers detected. Stopping the car.")
+                        if distances:
+                            leftmost_distance = min(distances)
+                            rightmost_distance = max(distances)
+                            variance = rightmost_distance - leftmost_distance
+                            print(f"Updated Variance: {variance:.2f} (Threshold: 0.25)")
+                    else:
+                        print("No markers detected during lateral adjustment. Stopping.")
+                        stop_motors()
+                        return
+
+                stop_motors()  # Stop lateral movement when variance criterion is met
+
+                # Original autonomous behavior
+                average_distance = sum(distances) / len(distances)
+                print(f"Average Distance: {average_distance:.2f} meters")
+
+                frame_center = frame.shape[1] // 2
+                average_marker_position = sum(marker_positions) / len(marker_positions)
+                offset = (average_marker_position - frame_center) / frame_center  # Normalized offset (-1 to 1)
+                print(f"Marker Offset: {offset:.2f}")
+
+                # PID control for distance
+                control_signal = pid_control(average_distance)
+                control_signal = max(-1, min(1, control_signal))  # Clamp to [-1, 1]
+
+                # Determine if turning is needed
+                if abs(offset) < 0.1:  # Markers are relatively centered
+                    print("Markers centered. Moving forward/backward only.")
+                    turn_throttle = 0
+                else:  # Markers are off-center
+                    print("Markers off-center. Adjusting heading.")
+                    turn_throttle = offset * 0.5  # Scale turning signal
+
+                # Forward/backward movement
+                if abs(average_distance - TARGET_DISTANCE) <= 0.1:  # Tolerance for stopping
+                    print("Target distance reached. Stopping the car.")
+                    stop_motors()
+                    return
+                elif average_distance > TARGET_DISTANCE:  # Too far
+                    forward_throttle = control_signal
+                elif average_distance < TARGET_DISTANCE:  # Too close
+                    forward_throttle = -control_signal
+
+                # Combine forward/backward and turning control
+                motor1_throttle = turn_throttle  # Motor 1 for turning
+                motor2_throttle = forward_throttle - turn_throttle
+                motor3_throttle = -forward_throttle - turn_throttle
+
+                # Clamp motor throttles to [-1, 1]
+                motor1_throttle = max(-1, min(1, motor1_throttle))
+                motor2_throttle = max(-1, min(1, motor2_throttle))
+                motor3_throttle = max(-1, min(1, motor3_throttle))
+
+                # Set motor throttles
+                kit.motor1.throttle = motor1_throttle
+                kit.motor2.throttle = motor2_throttle
+                kit.motor3.throttle = motor3_throttle
+
+                print(f"Motor Throttles -> Motor1: {motor1_throttle:.2f}, Motor2: {motor2_throttle:.2f}, Motor3: {motor3_throttle:.2f}")
+        else:
+            # Rotate until marker is found
+            print("No markers detected. Rotating to find markers.")
+            set_motor_rotation("clockwise")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # Ensure the camera is released and motors are stopped
         stop_motors()
+        cap.release()
+        print("Camera released and motors stopped.")
+
+
+def move_laterally(direction):
+    """Move the car laterally to the left or right."""
+    if direction == "right":
+        kit.motor1.throttle = 1  # Adjust motor throttles for right movement
+        kit.motor2.throttle = 0
+        kit.motor3.throttle = -1
+    elif direction == "left":
+        kit.motor1.throttle = -1  # Adjust motor throttles for left movement
+        kit.motor2.throttle = 0
+        kit.motor3.throttle = 1
+
+    time.sleep(0.2)  # Move for a short duration
+    stop_motors()  # Stop motors after adjustment
 
 
 def are_markers_centered(frame, corners):
@@ -220,8 +281,8 @@ def main():
     global spin_mode
     cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 800)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FPS, 120)
 
     mode = "manual"
