@@ -9,7 +9,7 @@ if not os.path.exists(SAVE_FOLDER):
     os.makedirs(SAVE_FOLDER)
     print(f"Folder '{SAVE_FOLDER}' created.")
 
-# Initialize the camera (index set to 1 as per your preference)
+# Initialize the camera (index 0 by default)
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Error: Could not open camera.")
@@ -35,7 +35,7 @@ while True:
         print("Error: Could not read frame.")
         break
 
-    # Rotate the image 180 degrees clockwise
+    # Rotate the image 180 degrees clockwise since Arducam on car is rotated
     frame = cv2.rotate(frame, cv2.ROTATE_180)
 
     # Display the live feed

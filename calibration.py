@@ -6,12 +6,11 @@ import os
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 BOARD_ROWS = 5  # Number of markers in the vertical direction
 BOARD_COLS = 4  # Number of markers in the horizontal direction
-MARKER_LENGTH = 4.35/100  # Marker side length in meters (e.g., 3 cm)
-MARKER_SEPARATION = 0.45/100  # Marker separation in meters (e.g., 1 cm)
+MARKER_LENGTH = 4.35/100  # Marker side length in meters
+MARKER_SEPARATION = 0.45/100  # Marker separation in meters
 
 # Create the ArUco board
 board = cv2.aruco.GridBoard_create(
-    #size=(BOARD_COLS, BOARD_ROWS),  # Tuple (columns, rows)
     markersX=BOARD_COLS,
     markersY=BOARD_ROWS,
     markerLength=MARKER_LENGTH,    # Marker side length in meters
@@ -26,7 +25,7 @@ marker_counter_per_frame = []  # Number of markers detected per frame
 image_size = None
 
 # Load the calibration images
-CALIBRATION_IMAGES = "calibration_images"  # Folder containing your calibration images
+CALIBRATION_IMAGES = "calibration_images"  # Folder containing calibration images
 image_files = [os.path.join(CALIBRATION_IMAGES, f) for f in os.listdir(CALIBRATION_IMAGES) if f.endswith('.jpg')]
 
 # Process each calibration image
@@ -43,7 +42,7 @@ for image_file in image_files:
         all_ids_concatenated.extend(ids.flatten())  # Flatten IDs into a single list
         marker_counter_per_frame.append(len(ids))  # Count the markers in this frame
 
-        # Draw detected markers for visualization (optional)
+        # Draw detected markers for visualization
         cv2.aruco.drawDetectedMarkers(image, corners, ids)
         cv2.imshow("Detected Markers", image)
         cv2.waitKey(500)
@@ -62,7 +61,7 @@ if len(all_corners_concatenated) == 0 or len(all_ids_concatenated) == 0:
 # Perform camera calibration using the detected markers
 camera_matrix = np.zeros((3, 3))  # Initialize the camera matrix
 dist_coeffs = np.zeros((5,))      # Initialize distortion coefficients
-calibration_flags = 0             # Set calibration flags (e.g., cv2.CALIB_ZERO_TANGENT_DIST)
+calibration_flags = 0             # Set calibration flags
 
 # Convert IDs and marker counters to NumPy arrays
 all_ids_concatenated = np.array(all_ids_concatenated, dtype=np.int32)
@@ -95,7 +94,8 @@ print(dist_coeffs)
 np.save("camera_matrix3.npy", camera_matrix)
 np.save("dist_coeffs3.npy", dist_coeffs)
 
-output_path = "processed_images"
+# Save processed images
+output_path = "processed_images" # Folder for processed images
 os.makedirs(output_path, exist_ok=True)
 for i, image_file in enumerate(image_files):
     image = cv2.imread(image_file)
@@ -103,5 +103,5 @@ for i, image_file in enumerate(image_files):
     corners, ids, _ = cv2.aruco.detectMarkers(gray, ARUCO_DICT)
 
     if ids is not None:
-        cv2.aruco.drawDetectedMarkers(image, corners, ids)
-        cv2.imwrite(f"{output_path}/processed_{i}.jpg", image)
+        cv2.aruco.drawDetectedMarkers(image, corners, ids) # Draw corners and IDs of each Aruco marker in frame
+        cv2.imwrite(f"{output_path}/processed_{i}.jpg", image) # Save image to folder
